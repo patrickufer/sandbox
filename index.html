@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Autopause: blur/focus vs. Page Visibility</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --border: #2d3048;
+        --accent-blue: #4f8ef7;
+        --accent-purple: #a259f7;
+        --green: #22c55e;
+        --red: #ef4444;
+        --yellow: #eab308;
+        --text: #e2e8f0;
+        --muted: #64748b;
+        --radius: 12px;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        min-height: 100vh;
+        padding: 32px 24px;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+
+      header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        background: linear-gradient(
+          135deg,
+          var(--accent-blue),
+          var(--accent-purple)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 10px;
+      }
+
+      header p {
+        color: var(--muted);
+        font-size: 0.95rem;
+        max-width: 560px;
+        margin: 0 auto;
+        line-height: 1.6;
+      }
+
+      .diff-callout {
+        background: linear-gradient(135deg, #1e2235, #1e1e35);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent-blue);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        max-width: 900px;
+        margin: 0 auto 40px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+
+      .diff-callout h3 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .diff-callout .trigger {
+        font-size: 0.85rem;
+        line-height: 1.6;
+        color: var(--text);
+      }
+
+      .diff-callout .trigger strong {
+        color: var(--accent-blue);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .card-header {
+        padding: 18px 20px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .card-header .method-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding: 3px 10px;
+        border-radius: 99px;
+        margin-bottom: 10px;
+      }
+
+      .card.blur-card .method-badge {
+        background: rgba(79, 142, 247, 0.15);
+        color: var(--accent-blue);
+        border: 1px solid rgba(79, 142, 247, 0.3);
+      }
+
+      .card.vis-card .method-badge {
+        background: rgba(162, 89, 247, 0.15);
+        color: var(--accent-purple);
+        border: 1px solid rgba(162, 89, 247, 0.3);
+      }
+
+      .card-header h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .card-header p {
+        font-size: 0.8rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .status-row {
+        display: flex;
+        gap: 10px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.78rem;
+        font-weight: 500;
+        padding: 4px 12px;
+        border-radius: 99px;
+        border: 1px solid transparent;
+        transition: all 0.25s ease;
+      }
+
+      .status-pill .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        transition: background 0.25s ease;
+      }
+
+      .status-pill.active {
+        background: rgba(34, 197, 94, 0.1);
+        border-color: rgba(34, 197, 94, 0.3);
+        color: var(--green);
+      }
+      .status-pill.active .dot {
+        background: var(--green);
+        box-shadow: 0 0 6px var(--green);
+      }
+
+      .status-pill.inactive {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: var(--red);
+      }
+      .status-pill.inactive .dot {
+        background: var(--red);
+      }
+
+      .status-pill.idle {
+        background: rgba(100, 116, 139, 0.1);
+        border-color: rgba(100, 116, 139, 0.2);
+        color: var(--muted);
+      }
+      .status-pill.idle .dot {
+        background: var(--muted);
+      }
+
+      .video-wrap {
+        padding: 16px 20px;
+      }
+
+      video {
+        width: 100%;
+        border-radius: 8px;
+        background: #000;
+        display: block;
+      }
+
+      .log-section {
+        border-top: 1px solid var(--border);
+        padding: 12px 20px;
+      }
+
+      .log-section h4 {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+
+      .log {
+        height: 200px;
+        overflow-y: auto;
+        font-family: "SF Mono", "Consolas", monospace;
+        font-size: 0.75rem;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column-reverse;
+      }
+
+      .log::-webkit-scrollbar {
+        width: 4px;
+      }
+      .log::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .log::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+
+      .log-entry {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        padding: 1px 0;
+      }
+
+      .log-entry .ts {
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+      .log-entry .ev {
+      }
+      .log-entry.ev-play .ev {
+        color: var(--green);
+      }
+      .log-entry.ev-pause .ev {
+        color: var(--red);
+      }
+      .log-entry.ev-signal .ev {
+        color: var(--yellow);
+      }
+
+      .code-snippet {
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 12px 20px 0;
+        font-family: "SF Mono", "Consolas", monospace;
+        font-size: 0.75rem;
+        line-height: 1.7;
+        color: #94a3b8;
+      }
+
+      .code-snippet .kw {
+        color: #c792ea;
+      }
+      .code-snippet .fn {
+        color: #82aaff;
+      }
+      .code-snippet .str {
+        color: #c3e88d;
+      }
+      .code-snippet .cmt {
+        color: #546e7a;
+        font-style: italic;
+      }
+
+      @media (max-width: 700px) {
+        .grid,
+        .diff-callout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Video Autopause Demo</h1>
+      <p>
+        Two strategies for pausing video when users switch away — and why they
+        behave differently.
+      </p>
+    </header>
+
+    <div class="diff-callout">
+      <div>
+        <h3>window blur / focus</h3>
+        <div class="trigger">
+          Fires when the <strong>browser window</strong> loses or regains OS
+          focus.<br />
+          Triggers on: alt-tab to another app, clicking DevTools, opening a
+          native dialog.<br />
+          <em>Does NOT fire on tab switch within same window.</em>
+        </div>
+      </div>
+      <div>
+        <h3>Page Visibility API</h3>
+        <div class="trigger">
+          Fires when the <strong>tab</strong> becomes hidden or visible.<br />
+          Triggers on: switching tabs, minimizing window, screen lock.<br />
+          <em
+            >Does NOT fire when window focus moves to another app while tab is
+            visible.</em
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Blur / Focus card -->
+      <div class="card blur-card">
+        <div class="card-header">
+          <div class="method-badge">window.blur / focus</div>
+          <h2>Window Focus Detection</h2>
+          <p>
+            Pauses when the OS window loses focus — even if this tab is still
+            visible.
+          </p>
+        </div>
+
+        <div class="status-row">
+          <div class="status-pill idle" id="blur-video-status">
+            <span class="dot"></span><span class="label">Video: waiting</span>
+          </div>
+          <div class="status-pill idle" id="blur-window-status">
+            <span class="dot"></span><span class="label">Window: —</span>
+          </div>
+        </div>
+
+        <div class="code-snippet">
+          <span class="kw">window</span>.<span class="fn">addEventListener</span
+          >(<span class="str">"blur"</span>, () =&gt; video.<span class="fn"
+            >pause</span
+          >());<br />
+          <span class="kw">window</span>.<span class="fn">addEventListener</span
+          >(<span class="str">"focus"</span>, () =&gt; video.<span class="fn"
+            >play</span
+          >());
+        </div>
+
+        <div class="video-wrap">
+          <video id="blurVideo" loop controls muted playsinline autoplay>
+            <source type="video/mp4" src="bee.mp4" />
+          </video>
+        </div>
+
+        <div class="log-section">
+          <h4>Event Log</h4>
+          <div class="log" id="blur-log"></div>
+        </div>
+      </div>
+
+      <!-- Page Visibility card -->
+      <div class="card vis-card">
+        <div class="card-header">
+          <div class="method-badge">Page Visibility API</div>
+          <h2>Tab Visibility Detection</h2>
+          <p>
+            Pauses when the tab becomes hidden — regardless of which app has OS
+            focus.
+          </p>
+        </div>
+
+        <div class="status-row">
+          <div class="status-pill idle" id="vis-video-status">
+            <span class="dot"></span><span class="label">Video: waiting</span>
+          </div>
+          <div class="status-pill idle" id="vis-tab-status">
+            <span class="dot"></span><span class="label">Tab: —</span>
+          </div>
+        </div>
+
+        <div class="code-snippet">
+          <span class="kw">document</span>.<span class="fn"
+            >addEventListener</span
+          >(<span class="str">"visibilitychange"</span>, () =&gt; {<br />
+          &nbsp;&nbsp;<span class="kw">if</span> (<span class="kw"
+            >document</span
+          >.hidden) video.<span class="fn">pause</span>();<br />
+          &nbsp;&nbsp;<span class="kw">else</span> video.<span class="fn"
+            >play</span
+          >();<br />
+          });
+        </div>
+
+        <div class="video-wrap">
+          <video id="visVideo" loop controls muted playsinline autoplay>
+            <source type="video/mp4" src="bee.mp4" />
+          </video>
+        </div>
+
+        <div class="log-section">
+          <h4>Event Log</h4>
+          <div class="log" id="vis-log"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const blurVideo = document.getElementById("blurVideo");
+      const visVideo = document.getElementById("visVideo");
+
+      // ── status pill helpers ──────────────────────────────────────────────────
+      function setStatus(id, state, label) {
+        const el = document.getElementById(id);
+        el.className = "status-pill " + state;
+        el.querySelector(".label").textContent = label;
+      }
+
+      // ── log helper ───────────────────────────────────────────────────────────
+      function logEvent(logId, text, kind) {
+        const log = document.getElementById(logId);
+        const entry = document.createElement("div");
+        entry.className = "log-entry ev-" + kind;
+        const now = new Date();
+        const ts =
+          now.toLocaleTimeString("en", { hour12: false }) +
+          "." +
+          String(now.getMilliseconds()).padStart(3, "0");
+        entry.innerHTML = `<span class="ts">${ts}</span><span class="ev">${text}</span>`;
+        log.prepend(entry);
+      }
+
+      // ── video state listeners ────────────────────────────────────────────────
+      blurVideo.addEventListener("play", () => {
+        setStatus("blur-video-status", "active", "Video: playing");
+        logEvent("blur-log", "video play", "play");
+      });
+      blurVideo.addEventListener("pause", () => {
+        setStatus("blur-video-status", "inactive", "Video: paused");
+        logEvent("blur-log", "video pause", "pause");
+      });
+
+      visVideo.addEventListener("play", () => {
+        setStatus("vis-video-status", "active", "Video: playing");
+        logEvent("vis-log", "video play", "play");
+      });
+      visVideo.addEventListener("pause", () => {
+        setStatus("vis-video-status", "inactive", "Video: paused");
+        logEvent("vis-log", "video pause", "pause");
+      });
+
+      // ── blur / focus ─────────────────────────────────────────────────────────
+      let blurFocusReady = false;
+
+      window.addEventListener("blur", () => {
+        blurFocusReady = true;
+        setStatus("blur-window-status", "inactive", "Window: blurred");
+        logEvent("blur-log", "window blur → pause", "signal");
+        blurVideo.pause();
+      });
+
+      window.addEventListener("focus", () => {
+        setStatus("blur-window-status", "active", "Window: focused");
+        if (!blurFocusReady) return;
+        logEvent("blur-log", "window focus → play", "signal");
+        blurVideo.play().catch(() => {});
+      });
+
+      // ── page visibility ──────────────────────────────────────────────────────
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          setStatus("vis-tab-status", "inactive", "Tab: hidden");
+          logEvent("vis-log", "tab hidden → pause", "signal");
+          visVideo.pause();
+        } else {
+          setStatus("vis-tab-status", "active", "Tab: visible");
+          logEvent("vis-log", "tab visible → play", "signal");
+          visVideo.play().catch(() => {});
+        }
+      });
+
+      // ── init window/tab status ───────────────────────────────────────────────
+      setStatus("blur-window-status", "active", "Window: focused");
+      setStatus(
+        "vis-tab-status",
+        document.hidden ? "inactive" : "active",
+        "Tab: " + (document.hidden ? "hidden" : "visible"),
+      );
+    </script>
+  </body>
+</html>
