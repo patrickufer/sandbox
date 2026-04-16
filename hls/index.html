@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <body style="margin: 0; background: #000">
-    <video width="275px" height="274px" muted autoplay></video>
+    <video width="275px" height="274px" muted></video>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
       const video = document.querySelector("video");
@@ -11,6 +11,7 @@
         // Safari native HLS
         video.src = src;
         video.load();
+        video.play(); // needed for Chromium. `autoplay` alone doesn't work
       } else if (Hls.isSupported()) {
         const hls = new Hls();
         hls.loadSource(src);
